@@ -4,7 +4,7 @@ Este repositório contém o projeto da disciplina CC7261 - SISTEMAS DISTRIBUIDOS
 
 Neste, é desenvolvido um sistema simples de Bulletin Board System conforme as especificações do arquivo docs/enunciado.md. utilizando as linguagens Python (server) e Go (clientes).
 
-O projeto é desenvolvido no ambiente do Github Codespaces com a utilização de Docker para replicação.
+O projeto é desenvolvido no ambiente do Github Codespaces com a utilização de Docker para replicação. As imagens utilizadas se encontram no Docker Hub.
 
 ## Integrantes
 Igor Vicente Cutalo - R.A. 22.123.062-6
@@ -17,13 +17,14 @@ Igor Vicente Cutalo - R.A. 22.123.062-6
 ## Execução
 
 ```bash
-docker-compose up --build
+docker-compose up
 ```
+
 ## Escolhas técnicas
 
 ### Linguagens
 
-O broker e os servidores foram implementados em **Python**, pela facilidade de integração com ZeroMQ e SQLite. Os clientes foram implementados em **Go**, demonstrando interoperabilidade entre linguagens distintas através do broker.
+O broker e os servidores foram implementados em **Python**, pela facilidade de integração com ZeroMQ e SQLite. Os clientes foram implementados em **Go**, demonstrando interoperabilidade entre linguagens distintas através do broker. Em ambos os casos, a facilidade de uso e conhecimento prévio do autor influenciou fortemente na decisão.
 
 ### Comunicação e Serialização
 
