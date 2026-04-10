@@ -195,9 +195,22 @@ func main() {
         time.Sleep(1 * time.Second)
     }
 
+    // Busca canais antes de iniciar o subscriber
+    initialChannels := getChannels(socket)
+
     // Lista de canais em que este bot está inscrito (compartilhada com goroutine)
     subscribedChannels := []string{}
     var mu sync.Mutex
+
+    // Pré-popula com até 3 canais
+    mu.Lock()
+    for _, ch := range initialChannels {
+        if len(subscribedChannels) >= 3 {
+            break
+        }
+        subscribedChannels = append(subscribedChannels, ch)
+    }
+    mu.Unlock()
 
     // Inicia goroutine de subscriber
     go subscriberLoop(&subscribedChannels, &mu)
