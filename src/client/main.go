@@ -85,6 +85,8 @@ func subscriberLoop(subscribedChannels *[]string, mu *sync.Mutex) {
     defer sub.Close()
     sub.Connect(pubsubAddr)
 
+    time.Sleep(2 * time.Second)
+    
     // Mantém controle dos tópicos já inscritos neste socket
     subscribed := map[string]bool{}
 
@@ -126,7 +128,20 @@ func subscriberLoop(subscribedChannels *[]string, mu *sync.Mutex) {
 
         username, _ := pubMsg["username"].(string)
         content, _ := pubMsg["content"].(string)
-        sendTs, _ := pubMsg["timestamp"].(int64)
+        rawTs := pubMsg["timestamp"]
+        var sendTs int64
+        switch v := rawTs.(type) {
+        case int64:
+            sendTs = v
+        case uint64:
+            sendTs = int64(v)
+        case int32:
+            sendTs = int64(v)
+        case uint32:
+            sendTs = int64(v)
+        case int8:
+            sendTs = int64(v)
+        }
 
         fmt.Printf(
             "[CLIENT:%s] SUB RECV | channel=%s | from=%s | content=%s | sent_ts=%d | recv_ts=%d\n",
