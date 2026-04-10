@@ -1,6 +1,6 @@
 services:
   broker:
-    build: ./broker
+    image: igorvicente0712/sbbs_broker:part02
     ports:
       - "5555:5555"
       - "5556:5556"
@@ -11,7 +11,7 @@ services:
       retries: 10
 
   pubsub_proxy:
-    build: ./pubsub_proxy
+    image: igorvicente0712/sbbs_pubsub_proxy:part02
     ports:
       - "5557:5557"
       - "5558:5558"
@@ -22,7 +22,7 @@ services:
       retries: 10
 
   server1:
-    build: ./server
+    image: igorvicente0712/sbbs_server:part02
     environment:
       - BROKER_ADDR=tcp://broker:5556
       - PUBSUB_ADDR=tcp://pubsub_proxy:5557
@@ -37,7 +37,7 @@ services:
         condition: service_healthy
 
   server2:
-    build: ./server
+    image: igorvicente0712/sbbs_server:part02
     environment:
       - BROKER_ADDR=tcp://broker:5556
       - PUBSUB_ADDR=tcp://pubsub_proxy:5557
@@ -52,7 +52,7 @@ services:
         condition: service_healthy
 
   client1:
-    build: ./client
+    image: igorvicente0712/sbbs_client:part02
     environment:
       - BROKER_ADDR=tcp://broker:5555
       - PUBSUB_ADDR=tcp://pubsub_proxy:5558
@@ -64,7 +64,7 @@ services:
         condition: service_healthy
 
   client2:
-    build: ./client
+    image: igorvicente0712/sbbs_client:part02
     environment:
       - BROKER_ADDR=tcp://broker:5555
       - PUBSUB_ADDR=tcp://pubsub_proxy:5558
