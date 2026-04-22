@@ -1,6 +1,6 @@
 services:
   broker:
-    image: igorvicente0712/broker:latest
+    image: igorvicente0712/sbbs_broker:part02
     ports:
       - "5555:5555"
       - "5556:5556"
@@ -10,42 +10,67 @@ services:
       timeout: 5s
       retries: 10
 
+  pubsub_proxy:
+    image: igorvicente0712/sbbs_pubsub_proxy:part02
+    ports:
+      - "5557:5557"
+      - "5558:5558"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import zmq; ctx=zmq.Context(); s=ctx.socket(zmq.PUB); s.connect('tcp://localhost:5557')\""]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
   server1:
-    image: igorvicente0712/server:latest
+    image: igorvicente0712/sbbs_server:part02
     environment:
       - BROKER_ADDR=tcp://broker:5556
+      - PUBSUB_ADDR=tcp://pubsub_proxy:5557
       - DB_PATH=/data/shared.db
+      - SERVER_ID=server1
     volumes:
       - ./data:/data
     depends_on:
       broker:
+        condition: service_healthy
+      pubsub_proxy:
         condition: service_healthy
 
   server2:
-    image: igorvicente0712/server:latest
+    image: igorvicente0712/sbbs_server:part02
     environment:
       - BROKER_ADDR=tcp://broker:5556
+      - PUBSUB_ADDR=tcp://pubsub_proxy:5557
       - DB_PATH=/data/shared.db
+      - SERVER_ID=server2
     volumes:
       - ./data:/data
     depends_on:
       broker:
         condition: service_healthy
+      pubsub_proxy:
+        condition: service_healthy
 
   client1:
-    image: igorvicente0712/client:latest
+    image: igorvicente0712/sbbs_client:part02
     environment:
       - BROKER_ADDR=tcp://broker:5555
+      - PUBSUB_ADDR=tcp://pubsub_proxy:5558
       - BOT_NAME=bot1
     depends_on:
       broker:
         condition: service_healthy
+      pubsub_proxy:
+        condition: service_healthy
 
   client2:
-    image: igorvicente0712/client:latest
+    image: igorvicente0712/sbbs_client:part02
     environment:
       - BROKER_ADDR=tcp://broker:5555
+      - PUBSUB_ADDR=tcp://pubsub_proxy:5558
       - BOT_NAME=bot2
     depends_on:
       broker:
+        condition: service_healthy
+      pubsub_proxy:
         condition: service_healthy
