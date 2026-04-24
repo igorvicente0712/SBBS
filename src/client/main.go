@@ -12,32 +12,59 @@ import (
 )
 
 type Message struct {
-    Type      string                 `msgpack:"type"`
-    Payload   map[string]interface{} `msgpack:"payload"`
-    Timestamp int64                  `msgpack:"timestamp"`
+    Type         string                 `msgpack:"type"`
+    Payload      map[string]interface{} `msgpack:"payload"`
+    Timestamp    int64                  `msgpack:"timestamp"`
+    LogicalClock int64                  `msgpack:"logical_clock"`
 }
 
 type Response struct {
-    Type      string                 `msgpack:"type"`
-    Payload   map[string]interface{} `msgpack:"payload"`
-    Timestamp int64                  `msgpack:"timestamp"`
+    Type         string                 `msgpack:"type"`
+    Payload      map[string]interface{} `msgpack:"payload"`
+    Timestamp    int64                  `msgpack:"timestamp"`
+    LogicalClock int64                  `msgpack:"logical_clock"`
 }
 
 var brokerAddr = os.Getenv("BROKER_ADDR")
 var pubsubAddr = os.Getenv("PUBSUB_ADDR")
 var botName = os.Getenv("BOT_NAME")
 
+// Relógio lógico global do bot
+var logicalClock int64 = 0
+var clockMu sync.Mutex
+
+func incrementClock() int64 {
+    clockMu.Lock()
+    defer clockMu.Unlock()
+    logicalClock++
+    return logicalClock
+}
+
+func updateClock(received int64) int64 {
+    clockMu.Lock()
+    defer clockMu.Unlock()
+    if received > logicalClock {
+        logicalClock = received
+    }
+    logicalClock++
+    return logicalClock
+}
+
 func send(socket *zmq.Socket, msgType string, payload map[string]interface{}) (Response, error) {
+    clk := incrementClock()
     msg := Message{
-        Type:      msgType,
-        Payload:   payload,
-        Timestamp: time.Now().Unix(),
+        Type:         msgType,
+        Payload:      payload,
+        Timestamp:    time.Now().Unix(),
+        LogicalClock: clk,
     }
     raw, err := msgpack.Marshal(msg)
     if err != nil {
         return Response{}, err
     }
-    fmt.Printf("[CLIENT:%s] SEND | type=%s | payload=%v | timestamp=%d\n", botName, msgType, payload, msg.Timestamp)
+    fmt.Printf("[CLIENT:%s] SEND | type=%s | payload=%v | timestamp=%d | logical_clock=%d\n",
+        botName, msgType, payload, msg.Timestamp, clk)
+
     _, err = socket.SendBytes(raw, 0)
     if err != nil {
         return Response{}, err
@@ -51,7 +78,11 @@ func send(socket *zmq.Socket, msgType string, payload map[string]interface{}) (R
     if err != nil {
         return Response{}, err
     }
-    fmt.Printf("[CLIENT:%s] RECV | type=%s | payload=%v | timestamp=%d\n", botName, resp.Type, resp.Payload, resp.Timestamp)
+
+    newClk := updateClock(resp.LogicalClock)
+    fmt.Printf("[CLIENT:%s] RECV | type=%s | payload=%v | timestamp=%d | logical_clock=%d\n",
+        botName, resp.Type, resp.Payload, resp.Timestamp, newClk)
+
     return resp, nil
 }
 
@@ -64,7 +95,6 @@ func getChannels(socket *zmq.Socket) []string {
     if !ok {
         return []string{}
     }
-    // msgpack desserializa arrays como []interface{}
     iface, ok := raw.([]interface{})
     if !ok {
         return []string{}
@@ -78,7 +108,6 @@ func getChannels(socket *zmq.Socket) []string {
     return channels
 }
 
-// subscriberLoop fica ouvindo mensagens dos canais inscritos e exibe na tela
 func subscriberLoop(subscribedChannels *[]string, mu *sync.Mutex) {
     context, _ := zmq.NewContext()
     sub, _ := context.NewSocket(zmq.SUB)
@@ -86,8 +115,7 @@ func subscriberLoop(subscribedChannels *[]string, mu *sync.Mutex) {
     sub.Connect(pubsubAddr)
 
     time.Sleep(2 * time.Second)
-    
-    // Mantém controle dos tópicos já inscritos neste socket
+
     subscribed := map[string]bool{}
 
     for {
@@ -96,7 +124,6 @@ func subscriberLoop(subscribedChannels *[]string, mu *sync.Mutex) {
         copy(channels, *subscribedChannels)
         mu.Unlock()
 
-        // Inscreve em novos tópicos se necessário
         for _, ch := range channels {
             if !subscribed[ch] {
                 sub.SetSubscribe(ch)
@@ -105,11 +132,9 @@ func subscriberLoop(subscribedChannels *[]string, mu *sync.Mutex) {
             }
         }
 
-        // Tenta receber mensagem com timeout para não bloquear verificação de novos canais
         sub.SetRcvtimeo(500 * time.Millisecond)
         parts, err := sub.RecvMessageBytes(0)
         if err != nil {
-            // timeout ou erro — apenas continua o loop
             continue
         }
 
@@ -128,9 +153,9 @@ func subscriberLoop(subscribedChannels *[]string, mu *sync.Mutex) {
 
         username, _ := pubMsg["username"].(string)
         content, _ := pubMsg["content"].(string)
-        rawTs := pubMsg["timestamp"]
+
         var sendTs int64
-        switch v := rawTs.(type) {
+        switch v := pubMsg["timestamp"].(type) {
         case int64:
             sendTs = v
         case uint64:
@@ -143,9 +168,25 @@ func subscriberLoop(subscribedChannels *[]string, mu *sync.Mutex) {
             sendTs = int64(v)
         }
 
+        var msgLogicalClock int64
+        switch v := pubMsg["logical_clock"].(type) {
+        case int64:
+            msgLogicalClock = v
+        case uint64:
+            msgLogicalClock = int64(v)
+        case int32:
+            msgLogicalClock = int64(v)
+        case uint32:
+            msgLogicalClock = int64(v)
+        case int8:
+            msgLogicalClock = int64(v)
+        }
+
+        newClk := updateClock(msgLogicalClock)
+
         fmt.Printf(
-            "[CLIENT:%s] SUB RECV | channel=%s | from=%s | content=%s | sent_ts=%d | recv_ts=%d\n",
-            botName, channel, username, content, sendTs, recvTs,
+            "[CLIENT:%s] SUB RECV | channel=%s | from=%s | content=%s | sent_ts=%d | recv_ts=%d | logical_clock=%d\n",
+            botName, channel, username, content, sendTs, recvTs, newClk,
         )
     }
 }
@@ -172,15 +213,13 @@ func main() {
     }
 
     rand.Seed(time.Now().UnixNano())
-
-    time.Sleep(3 * time.Second) // aguarda serviços subirem
+    time.Sleep(3 * time.Second)
 
     context, _ := zmq.NewContext()
     socket, _ := context.NewSocket(zmq.REQ)
     defer socket.Close()
     socket.Connect(brokerAddr)
 
-    // Login
     for {
         resp, err := send(socket, "login", map[string]interface{}{"username": botName})
         if err != nil {
@@ -195,14 +234,11 @@ func main() {
         time.Sleep(1 * time.Second)
     }
 
-    // Busca canais antes de iniciar o subscriber
     initialChannels := getChannels(socket)
 
-    // Lista de canais em que este bot está inscrito (compartilhada com goroutine)
     subscribedChannels := []string{}
     var mu sync.Mutex
 
-    // Pré-popula com até 3 canais
     mu.Lock()
     for _, ch := range initialChannels {
         if len(subscribedChannels) >= 3 {
@@ -212,17 +248,13 @@ func main() {
     }
     mu.Unlock()
 
-    // Inicia goroutine de subscriber
     go subscriberLoop(&subscribedChannels, &mu)
 
-    // Nomes de canais predefinidos para geração
     allChannelNames := []string{"general", "random", "news", "tech", "sports", "music", "movies", "books", "travel", "food"}
 
     for {
-        // 1. Se existirem menos de 5 canais, cria um novo
         channels := getChannels(socket)
         if len(channels) < 5 {
-            // Tenta criar um canal que ainda não existe
             for _, name := range allChannelNames {
                 exists := false
                 for _, ch := range channels {
@@ -245,13 +277,11 @@ func main() {
             channels = getChannels(socket)
         }
 
-        // 2. Se inscrito em menos de 3 canais, inscreve em mais um
         mu.Lock()
         currentSubs := len(subscribedChannels)
         mu.Unlock()
 
         if currentSubs < 3 && len(channels) > 0 {
-            // Escolhe um canal não inscrito ainda
             for _, ch := range channels {
                 alreadySub := false
                 mu.Lock()
@@ -271,7 +301,6 @@ func main() {
             }
         }
 
-        // 3. Loop: escolhe canal e envia 10 mensagens com intervalo de 1s
         channels = getChannels(socket)
         if len(channels) == 0 {
             time.Sleep(1 * time.Second)
