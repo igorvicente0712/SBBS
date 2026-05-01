@@ -2,22 +2,22 @@ version: "3.8"
 
 services:
   broker:
-    build: ./broker
+    image: igorvicente0712/sbbs_broker:part04
     networks:
       - bbs_net
 
   pubsub_proxy:
-    build: ./pubsub_proxy
+    image: igorvicente0712/sbbs_pubsub_proxy:part04
     networks:
       - bbs_net
 
   reference:
-    build: ./reference
+    image: igorvicente0712/sbbs_reference:part04
     networks:
       - bbs_net
 
   server1:
-    build: ./server
+    image: igorvicente0712/sbbs_server:part04
     environment:
       - SERVER_ID=server1
       - DB_PATH=/data/server1.db
@@ -37,7 +37,7 @@ services:
       - bbs_net
 
   server2:
-    build: ./server
+    image: igorvicente0712/sbbs_server:part04
     environment:
       - SERVER_ID=server2
       - DB_PATH=/data/server2.db
@@ -57,7 +57,7 @@ services:
       - bbs_net
 
   bot1:
-    build: ./client
+    image: igorvicente0712/sbbs_client:part04
     environment:
       - BOT_NAME=bot1
       - BROKER_ADDR=tcp://broker:5555
@@ -71,7 +71,7 @@ services:
       - bbs_net
 
   bot2:
-    build: ./client
+    image: igorvicente0712/sbbs_client:part04
     environment:
       - BOT_NAME=bot2
       - BROKER_ADDR=tcp://broker:5555
@@ -85,7 +85,7 @@ services:
       - bbs_net
 
   bot3:
-    build: ./client
+    image: igorvicente0712/sbbs_client:part04
     environment:
       - BOT_NAME=bot3
       - BROKER_ADDR=tcp://broker:5555
