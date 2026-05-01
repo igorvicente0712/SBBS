@@ -15,6 +15,7 @@ Igor Vicente Cutalo - R.A. 22.123.062-6
 - `parte01_request-reply`: implementação da Parte 1 - Request-Reply.
 - `parte02_publish-subscribe`: implementação da Parte 2 - Publish-Subscribe.
 - `parte03_relogios-heartbeat`: implementação da Parte 3 - Relógios e Heartbeat.
+- `parte04_eleicao`: implementação da Parte 4 - Eleição.
 
 ## Execução
 

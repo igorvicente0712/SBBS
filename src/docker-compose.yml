@@ -2,28 +2,31 @@ version: "3.8"
 
 services:
   broker:
-    image: igorvicente0712/sbbs_broker:part03
+    build: ./broker
     networks:
       - bbs_net
 
   pubsub_proxy:
-    image: igorvicente0712/sbbs_pubsub_proxy:part03
+    build: ./pubsub_proxy
     networks:
       - bbs_net
 
   reference:
-    image: igorvicente0712/sbbs_reference:part03
+    build: ./reference
     networks:
       - bbs_net
 
   server1:
-    image: igorvicente0712/sbbs_server:part03
+    build: ./server
     environment:
       - SERVER_ID=server1
       - DB_PATH=/data/server1.db
       - BROKER_ADDR=tcp://broker:5556
       - PUBSUB_ADDR=tcp://pubsub_proxy:5557
+      - PUBSUB_SUB_ADDR=tcp://pubsub_proxy:5558
       - REFERENCE_ADDR=tcp://reference:5560
+      - SERVER_PORT=5570
+      - PEERS=server2:server2:5570
     volumes:
       - ./data:/data
     depends_on:
@@ -34,13 +37,16 @@ services:
       - bbs_net
 
   server2:
-    image: igorvicente0712/sbbs_server:part03
+    build: ./server
     environment:
       - SERVER_ID=server2
       - DB_PATH=/data/server2.db
       - BROKER_ADDR=tcp://broker:5556
       - PUBSUB_ADDR=tcp://pubsub_proxy:5557
+      - PUBSUB_SUB_ADDR=tcp://pubsub_proxy:5558
       - REFERENCE_ADDR=tcp://reference:5560
+      - SERVER_PORT=5570
+      - PEERS=server1:server1:5570
     volumes:
       - ./data:/data
     depends_on:
@@ -51,7 +57,7 @@ services:
       - bbs_net
 
   bot1:
-    image: igorvicente0712/sbbs_client:part03
+    build: ./client
     environment:
       - BOT_NAME=bot1
       - BROKER_ADDR=tcp://broker:5555
@@ -65,7 +71,7 @@ services:
       - bbs_net
 
   bot2:
-    image: igorvicente0712/sbbs_client:part03
+    build: ./client
     environment:
       - BOT_NAME=bot2
       - BROKER_ADDR=tcp://broker:5555
@@ -79,7 +85,7 @@ services:
       - bbs_net
 
   bot3:
-    image: igorvicente0712/sbbs_client:part03
+    build: ./client
     environment:
       - BOT_NAME=bot3
       - BROKER_ADDR=tcp://broker:5555
