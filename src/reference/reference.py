@@ -4,9 +4,9 @@ import time
 import threading
 
 REFERENCE_PORT = 5560
-HEARTBEAT_TIMEOUT = 60  # segundos sem heartbeat para remover servidor
+HEARTBEAT_TIMEOUT = 60
 
-servers = {}         # name -> {"rank": int, "last_seen": float}
+servers = {}
 rank_counter = 0
 lock = threading.Lock()
 
@@ -78,10 +78,8 @@ def main():
                 else:
                     print(f"[REFERENCE] Heartbeat from unknown server '{name}', ignoring", flush=True)
 
-            result = {
-                "status": "ok",
-                "timestamp": int(now)
-            }
+            # Timestamp removido conforme especificação da parte 4
+            result = {"status": "ok"}
 
         else:
             result = {"status": "error", "message": "Unknown message type"}
