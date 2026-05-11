@@ -119,7 +119,7 @@ def register_with_reference():
             print(f"[{SERVER_ID}] Registered with reference | rank={rank}", flush=True)
             return rank
         print(f"[{SERVER_ID}] Failed to register with reference, retrying...", flush=True)
-        time.sleep(2)
+        time.sleep(3)
 
 
 def send_heartbeat():
@@ -161,20 +161,21 @@ def send_to_peer(peer_id, host, port, mtype, payload, timeout=3000):
 
 def replicate_to_peers(peers, operation, data):
     """
-    Envia uma operação de escrita para todos os peers replicarem.
-    Executado em thread separada para não bloquear a resposta ao cliente.
-    operation: "login" | "create_channel" | "publish"
-    data: dicionário com os dados necessários para replicar a operação
+    Envia operação de escrita para todos os peers replicarem.
+    Roda em thread separada para não bloquear a resposta ao cliente.
     """
+    time.sleep(0.5)  # Pequeno delay para a resposta ao cliente aparecer primeiro nos logs
     for peer_id, info in peers.items():
+        print(f"[{SERVER_ID}] REPLICATING {operation} → {peer_id}...", flush=True)
         payload = {"operation": operation, "data": data}
         result = send_to_peer(peer_id, info["host"], info["port"], "replicate", payload)
         if result is None:
-            print(f"[{SERVER_ID}] Replication to {peer_id} failed (peer may be down)", flush=True)
+            print(f"[{SERVER_ID}] Replication to {peer_id} FAILED (peer may be down)", flush=True)
         elif result.get("status") == "ok":
             print(f"[{SERVER_ID}] Replication to {peer_id} OK | operation={operation}", flush=True)
         else:
-            print(f"[{SERVER_ID}] Replication to {peer_id} returned error | operation={operation} | result={result}", flush=True)
+            print(f"[{SERVER_ID}] Replication to {peer_id} ERROR | operation={operation} | result={result}", flush=True)
+        time.sleep(0.3)  # Breve pausa entre replicações para peers diferentes
 
 
 def apply_replicated_operation(conn, operation, data):
@@ -216,7 +217,6 @@ def apply_replicated_operation(conn, operation, data):
             ts = data.get("timestamp", int(time.time()))
             clk = data.get("logical_clock", 0)
             if channel and username and content:
-                # Garante que o canal existe antes de inserir a mensagem
                 conn.execute(
                     "INSERT OR IGNORE INTO channels (name, created_by, timestamp) VALUES (?, ?, ?)",
                     (channel, username, ts)
@@ -240,7 +240,6 @@ def apply_replicated_operation(conn, operation, data):
 
 
 def peer_server_loop(peers):
-    # Cada thread de peer_server_loop usa sua própria conexão com o banco
     conn = get_db()
 
     sock = zmq_context.socket(zmq.REP)
@@ -273,7 +272,6 @@ def peer_server_loop(peers):
                 result = {"status": "ok"}
 
             elif mtype == "replicate":
-                # Aplica a operação replicada localmente sem re-replicar
                 operation = payload.get("operation")
                 data = payload.get("data", {})
                 apply_replicated_operation(conn, operation, data)
@@ -308,23 +306,28 @@ def announce_coordinator(publisher):
 def start_election(peers, publisher):
     global coordinator, server_rank
 
-    print(f"[{SERVER_ID}] Starting election | my rank={server_rank}", flush=True)
+    print(f"[{SERVER_ID}] --- ELECTION STARTED | my rank={server_rank} ---", flush=True)
+    time.sleep(1)  # Pausa para o log de início de eleição ser visível
 
     higher_responded = False
 
     for peer_id, info in peers.items():
         peer_rank = info.get("rank", -1)
         if peer_rank > server_rank:
+            print(f"[{SERVER_ID}] Sending election message to {peer_id} (rank={peer_rank})", flush=True)
             result = send_to_peer(peer_id, info["host"], info["port"], "election", {"from": SERVER_ID})
             if result is not None and result.get("status") == "ok":
                 higher_responded = True
-                print(f"[{SERVER_ID}] Peer {peer_id} responded to election — waiting for coordinator announcement", flush=True)
+                print(f"[{SERVER_ID}] {peer_id} responded to election — deferring", flush=True)
+            time.sleep(0.5)
 
     if not higher_responded:
         with coordinator_lock:
             coordinator = SERVER_ID
-        print(f"[{SERVER_ID}] Elected as coordinator!", flush=True)
+        print(f"[{SERVER_ID}] *** ELECTED AS COORDINATOR ***", flush=True)
+        time.sleep(1)  # Pausa antes de anunciar para o log ser visível
         announce_coordinator(publisher)
+        print(f"[{SERVER_ID}] Coordinator announcement sent to all peers", flush=True)
 
 
 def sync_clock_with_coordinator(peers):
@@ -397,6 +400,7 @@ def subscriber_loop(peers, publisher):
                 result = send_to_peer(current_coord, info["host"], info["port"], "get_clock", {"from": SERVER_ID}, timeout=2000)
                 if result is None:
                     print(f"[{SERVER_ID}] Coordinator {current_coord} seems down — starting election", flush=True)
+                    time.sleep(1)
                     with coordinator_lock:
                         coordinator = None
                     start_election(peers, publisher)
@@ -516,8 +520,11 @@ def main():
 
     peers_raw = parse_peers()
 
-    time.sleep(2)
+    print(f"[{SERVER_ID}] Starting up...", flush=True)
+    time.sleep(3)
+
     server_rank = register_with_reference()
+    time.sleep(1)
 
     ref_list = send_to_reference("list", {})
     if ref_list.get("status") == "ok":
@@ -525,6 +532,9 @@ def main():
             pid = entry["name"]
             if pid in peers_raw:
                 peers_raw[pid]["rank"] = entry["rank"]
+        print(f"[{SERVER_ID}] Peer ranks loaded: { {k: v.get('rank') for k, v in peers_raw.items()} }", flush=True)
+
+    time.sleep(1)
 
     socket = zmq_context.socket(zmq.REP)
     socket.connect(BROKER_ADDR)
@@ -539,7 +549,9 @@ def main():
     threading.Thread(target=peer_server_loop, args=(peers_raw,), daemon=True).start()
     threading.Thread(target=subscriber_loop, args=(peers_raw, publisher), daemon=True).start()
 
-    time.sleep(3)
+    print(f"[{SERVER_ID}] All threads started, waiting before election...", flush=True)
+    time.sleep(4)  # Tempo para todos os servidores subirem antes da eleição
+
     start_election(peers_raw, publisher)
 
     while True:
@@ -571,7 +583,6 @@ def main():
             result = {"status": "error", "message": "Unknown message type"}
             replication_data = None
 
-        # Dispara replicação em background para não bloquear a resposta ao cliente
         if replication_data is not None and peers_raw:
             threading.Thread(
                 target=replicate_to_peers,

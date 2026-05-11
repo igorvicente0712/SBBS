@@ -2,30 +2,22 @@ version: "3.8"
 
 services:
   broker:
-    build:
-      context: ./broker
-      dockerfile: Dockerfile
+    image: igorvicente0712/sbbs_broker:part05
     networks:
       - bbs_net
 
   pubsub_proxy:
-    build:
-      context: ./pubsub_proxy
-      dockerfile: Dockerfile
+    image: igorvicente0712/sbbs_pubsub_proxy:part05
     networks:
       - bbs_net
 
   reference:
-    build:
-      context: ./reference
-      dockerfile: Dockerfile
+    image: igorvicente0712/sbbs_reference:part05
     networks:
       - bbs_net
 
   server1:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
+    image: igorvicente0712/sbbs_server:part05
     environment:
       - SERVER_ID=server1
       - DB_PATH=/data/server1.db
@@ -45,9 +37,7 @@ services:
       - bbs_net
 
   server2:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
+    image: igorvicente0712/sbbs_server:part05
     environment:
       - SERVER_ID=server2
       - DB_PATH=/data/server2.db
@@ -67,9 +57,7 @@ services:
       - bbs_net
 
   bot1:
-    build:
-      context: ./client
-      dockerfile: Dockerfile
+    image: igorvicente0712/sbbs_client:part05
     environment:
       - BOT_NAME=bot1
       - BROKER_ADDR=tcp://broker:5555
@@ -83,9 +71,7 @@ services:
       - bbs_net
 
   bot2:
-    build:
-      context: ./client
-      dockerfile: Dockerfile
+    image: igorvicente0712/sbbs_client:part05
     environment:
       - BOT_NAME=bot2
       - BROKER_ADDR=tcp://broker:5555
@@ -99,9 +85,7 @@ services:
       - bbs_net
 
   bot3:
-    build:
-      context: ./client
-      dockerfile: Dockerfile
+    image: igorvicente0712/sbbs_client:part05
     environment:
       - BOT_NAME=bot3
       - BROKER_ADDR=tcp://broker:5555

@@ -245,7 +245,7 @@ func main() {
     }
 
     // Pausa após login para os logs ficarem legíveis
-    time.Sleep(2 * time.Second)
+    time.Sleep(3 * time.Second)
 
     initialChannels := getChannels(socket)
 
@@ -325,7 +325,7 @@ func main() {
         chosenChannel := channels[rand.Intn(len(channels))]
 
         // Publica mensagens com delay maior entre elas para facilitar acompanhamento
-        for i := 0; i < 5; i++ {
+        for i := 0; i < 3; i++ {
             content := randomMessage()
             resp, err := send(socket, "publish", map[string]interface{}{
                 "username": botName,
@@ -338,10 +338,10 @@ func main() {
                 fmt.Printf("[CLIENT:%s] Published to channel=%s | status=%v\n", botName, chosenChannel, resp.Payload["status"])
             }
             // 3 segundos entre cada mensagem publicada
-            time.Sleep(3 * time.Second)
+            time.Sleep(5 * time.Second)
         }
 
         // Pausa entre rodadas de publicação
-        time.Sleep(5 * time.Second)
+        time.Sleep(10 * time.Second)
     }
 }
