@@ -29,7 +29,6 @@ var brokerAddr = os.Getenv("BROKER_ADDR")
 var pubsubAddr = os.Getenv("PUBSUB_ADDR")
 var botName = os.Getenv("BOT_NAME")
 
-// Relógio lógico global do bot
 var logicalClock int64 = 0
 var clockMu sync.Mutex
 
@@ -114,7 +113,7 @@ func subscriberLoop(subscribedChannels *[]string, mu *sync.Mutex) {
     defer sub.Close()
     sub.Connect(pubsubAddr)
 
-    time.Sleep(2 * time.Second)
+    time.Sleep(3 * time.Second)
 
     subscribed := map[string]bool{}
 
@@ -213,26 +212,40 @@ func main() {
     }
 
     rand.Seed(time.Now().UnixNano())
-    time.Sleep(3 * time.Second)
+
+    // Delay escalonado por bot para não sobrecarregar a inicialização
+    startDelay := 5 * time.Second
+    switch botName {
+    case "bot2":
+        startDelay = 7 * time.Second
+    case "bot3":
+        startDelay = 9 * time.Second
+    }
+    fmt.Printf("[CLIENT:%s] Waiting %s before starting...\n", botName, startDelay)
+    time.Sleep(startDelay)
 
     context, _ := zmq.NewContext()
     socket, _ := context.NewSocket(zmq.REQ)
     defer socket.Close()
     socket.Connect(brokerAddr)
 
+    // Login com retry
     for {
         resp, err := send(socket, "login", map[string]interface{}{"username": botName})
         if err != nil {
             fmt.Println("[CLIENT] Error on login:", err)
-            time.Sleep(1 * time.Second)
+            time.Sleep(2 * time.Second)
             continue
         }
         if resp.Payload["status"] == "ok" {
             break
         }
         fmt.Println("[CLIENT] Login failed, retrying...")
-        time.Sleep(1 * time.Second)
+        time.Sleep(2 * time.Second)
     }
+
+    // Pausa após login para os logs ficarem legíveis
+    time.Sleep(3 * time.Second)
 
     initialChannels := getChannels(socket)
 
@@ -271,6 +284,8 @@ func main() {
                     if err == nil && resp.Payload["status"] == "ok" {
                         fmt.Printf("[CLIENT:%s] Created channel: %s\n", botName, name)
                     }
+                    // Pausa após criar canal
+                    time.Sleep(2 * time.Second)
                     break
                 }
             }
@@ -303,13 +318,14 @@ func main() {
 
         channels = getChannels(socket)
         if len(channels) == 0 {
-            time.Sleep(1 * time.Second)
+            time.Sleep(2 * time.Second)
             continue
         }
 
         chosenChannel := channels[rand.Intn(len(channels))]
 
-        for i := 0; i < 10; i++ {
+        // Publica mensagens com delay maior entre elas para facilitar acompanhamento
+        for i := 0; i < 3; i++ {
             content := randomMessage()
             resp, err := send(socket, "publish", map[string]interface{}{
                 "username": botName,
@@ -321,7 +337,11 @@ func main() {
             } else {
                 fmt.Printf("[CLIENT:%s] Published to channel=%s | status=%v\n", botName, chosenChannel, resp.Payload["status"])
             }
-            time.Sleep(1 * time.Second)
+            // 3 segundos entre cada mensagem publicada
+            time.Sleep(5 * time.Second)
         }
+
+        // Pausa entre rodadas de publicação
+        time.Sleep(10 * time.Second)
     }
 }
